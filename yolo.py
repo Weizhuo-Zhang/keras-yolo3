@@ -36,7 +36,7 @@ class YOLO(object):
         else:
             return "Unrecognized attribute name '" + n + "'"
 
-    def __init__(self, **kwargs):
+    def __init__(self, kwargs):
         self.__dict__.update(self._defaults) # set up default values
         self.__dict__.update(kwargs) # and update with user overrides
         self.class_names = self._get_class()
@@ -170,6 +170,7 @@ class YOLO(object):
         self.sess.close()
 
 def detect_video(yolo, video_path, output_path=""):
+#    try:
     import cv2
     vid = cv2.VideoCapture(video_path)
     if not vid.isOpened():
@@ -186,8 +187,10 @@ def detect_video(yolo, video_path, output_path=""):
     curr_fps = 0
     fps = "FPS: ??"
     prev_time = timer()
-    while True:
-        return_value, frame = vid.read()
+    return_value, frame = vid.read()
+    while return_value:
+        import datetime
+        start_time = datetime.datetime.now()
         image = Image.fromarray(frame)
         image = yolo.detect_image(image)
         result = np.asarray(image)
@@ -208,5 +211,11 @@ def detect_video(yolo, video_path, output_path=""):
             out.write(result)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+        return_value, frame = vid.read()
+        end_time = datetime.datetime.now()
+        interval = (end_time-start_time).microseconds / 1000
+        print("time spent: {0:2}ms".format(interval))
     yolo.close_session()
+#    except Exception as e:
+#        yolo.close_session()
 
