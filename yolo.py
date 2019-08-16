@@ -8,6 +8,7 @@ import os
 from timeit import default_timer as timer
 
 import numpy as np
+import tensorflow as tf
 from keras import backend as K
 from keras.models import load_model
 from keras.layers import Input
@@ -17,6 +18,8 @@ from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body
 from yolo3.utils import letterbox_image
 import os
 from keras.utils import multi_gpu_model
+
+import cv2
 
 class YOLO(object):
     _defaults = {
@@ -41,6 +44,10 @@ class YOLO(object):
         self.__dict__.update(kwargs) # and update with user overrides
         self.class_names = self._get_class()
         self.anchors = self._get_anchors()
+        # create session
+        K.clear_session()
+        sess = tf.Session()
+        K.set_session(sess)
         self.sess = K.get_session()
         self.boxes, self.scores, self.classes = self.generate()
 
@@ -170,52 +177,53 @@ class YOLO(object):
         self.sess.close()
 
 def detect_video(yolo, video_path, output_path=""):
-#    try:
-    import cv2
-    vid = cv2.VideoCapture(video_path)
-    if not vid.isOpened():
-        raise IOError("Couldn't open webcam or video")
-    video_FourCC    = int(vid.get(cv2.CAP_PROP_FOURCC))
-    video_fps       = vid.get(cv2.CAP_PROP_FPS)
-    video_size      = (int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                        int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
-    isOutput = True if output_path != "" else False
-    if isOutput:
-        print("!!! TYPE:", type(output_path), type(video_FourCC), type(video_fps), type(video_size))
-        out = cv2.VideoWriter(output_path, video_FourCC, video_fps, video_size)
-    accum_time = 0
-    curr_fps = 0
-    fps = "FPS: ??"
-    prev_time = timer()
-    return_value, frame = vid.read()
-    while return_value:
-        import datetime
-        start_time = datetime.datetime.now()
-        image = Image.fromarray(frame)
-        image = yolo.detect_image(image)
-        result = np.asarray(image)
-        curr_time = timer()
-        exec_time = curr_time - prev_time
-        prev_time = curr_time
-        accum_time = accum_time + exec_time
-        curr_fps = curr_fps + 1
-        if accum_time > 1:
-            accum_time = accum_time - 1
-            fps = "FPS: " + str(curr_fps)
-            curr_fps = 0
-        cv2.putText(result, text=fps, org=(3, 15), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                    fontScale=0.50, color=(255, 0, 0), thickness=2)
-        cv2.namedWindow("result", cv2.WINDOW_NORMAL)
-        cv2.imshow("result", result)
+    try:
+        vid = cv2.VideoCapture(video_path)
+        if not vid.isOpened():
+            raise IOError("Couldn't open webcam or video")
+        video_FourCC    = int(vid.get(cv2.CAP_PROP_FOURCC))
+        video_fps       = vid.get(cv2.CAP_PROP_FPS)
+        video_size      = (int(vid.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                            int(vid.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        isOutput = True if output_path != "" else False
         if isOutput:
-            out.write(result)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            print("!!! TYPE:", type(output_path), type(video_FourCC), type(video_fps), type(video_size))
+            out = cv2.VideoWriter(output_path, video_FourCC, video_fps, video_size)
+        accum_time = 0
+        curr_fps = 0
+        fps = "FPS: ??"
+        prev_time = timer()
         return_value, frame = vid.read()
-        end_time = datetime.datetime.now()
-        interval = (end_time-start_time).microseconds / 1000
-        print("time spent: {0:2}ms".format(interval))
-    yolo.close_session()
-#    except Exception as e:
-#        yolo.close_session()
-
+        while return_value:
+            import datetime
+            start_time = datetime.datetime.now()
+            image = Image.fromarray(frame)
+            image = yolo.detect_image(image)
+            result = np.asarray(image)
+            curr_time = timer()
+            exec_time = curr_time - prev_time
+            prev_time = curr_time
+            accum_time = accum_time + exec_time
+            curr_fps = curr_fps + 1
+            if accum_time > 1:
+                accum_time = accum_time - 1
+                fps = "FPS: " + str(curr_fps)
+                curr_fps = 0
+            cv2.putText(result, text=fps, org=(3, 15), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale=0.50, color=(255, 0, 0), thickness=2)
+            cv2.namedWindow("result", cv2.WINDOW_NORMAL)
+            cv2.startWindowThread()
+            cv2.imshow("result", result)
+            if isOutput:
+                out.write(result)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+            return_value, frame = vid.read()
+            end_time = datetime.datetime.now()
+            interval = (end_time-start_time).microseconds / 1000
+            print("time spent: {0:2}ms".format(interval))
+    #except Exception as e:
+    #    yolo.close_session()
+    finally:
+        cv2.destroyAllWindows()
+        yolo.close_session()
